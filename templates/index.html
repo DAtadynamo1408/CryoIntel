@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Refrigeration Analytics</title>
+    <!-- Use Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+    <!-- Chart.js for data visualization -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="background-orbs">
+        <div class="orb orb-1"></div>
+        <div class="orb orb-2"></div>
+        <div class="orb orb-3"></div>
+    </div>
+
+    <main class="container">
+        <header>
+            <h1>Refrigeration <span>Intelligence</span></h1>
+            <p>Dual-Mode Performance Ecosystem</p>
+        </header>
+
+        <div class="tabs">
+            <button class="tab-btn active" data-tab="calculator">Thermodynamic Calculator</button>
+            <button class="tab-btn" data-tab="predictor">ML Predictor Forecast</button>
+        </div>
+
+        <!-- CALCULATOR MODE -->
+        <div id="calculator" class="tab-content active">
+            <div class="dashboard-grid calc-grid">
+                <!-- Calculator Input Panel -->
+                <section class="glass-card input-panel">
+                    <h2>Manual Computation</h2>
+                    <form id="calc-form">
+                        <div class="form-group">
+                            <label for="calcTime">Time (min):</label>
+                            <input type="number" step="any" id="calcTime" value="0" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="calcTL">Evaporator Temp (TL) [K]:</label>
+                            <input type="number" step="any" id="calcTL" value="300.15" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="calcTH">Compressor Temp (TH) [K]:</label>
+                            <input type="number" step="any" id="calcTH" value="343.15" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="calcBlend">Blend Composition:</label>
+                            <select id="calcBlend" required>
+                                <option value="R407">R407</option>
+                                <option value="R32/R125/R152a (70/10/20)">R32/R125/R152a (70/10/20)</option>
+                                <option value="R32/R125/R152a (20/10/70)">R32/R125/R152a (20/10/70)</option>
+                                <option value="R32/R125/R152a (15/15/70)">R32/R125/R152a (15/15/70)</option>
+                                <option value="R32/R125/R152a (30/10/60)">R32/R125/R152a (30/10/60)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="calcMass">Mass (kg):</label>
+                            <input type="number" step="any" id="calcMass" value="1.5" required>
+                        </div>
+                        
+                        <button type="submit" class="primary-btn" id="calcBtn">
+                            <span class="btn-text">Calculate Exact Metrics</span>
+                            <span class="loader" style="display: none;"></span>
+                        </button>
+                    </form>
+                </section>
+
+                <!-- History Table & Live Metrics -->
+                <section class="glass-card table-panel" style="grid-column: 2 / -1;">
+                    <h2>Calculation History Logging</h2>
+                    <div class="table-container">
+                        <table id="calcTable">
+                            <thead>
+                                <tr>
+                                    <th>Blend</th>
+                                    <th>Mass</th>
+                                    <th>Time</th>
+                                    <th>TL (K)</th>
+                                    <th>TH (K)</th>
+                                    <th>COP</th>
+                                    <th>Wcomp (kW)</th>
+                                    <th>Exergy</th>
+                                    <th>|Exergy|</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Populated dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            </div>
+        </div>
+
+        <!-- PREDICTOR MODE -->
+        <div id="predictor" class="tab-content">
+            <div class="dashboard-grid">
+                <!-- Input Panel -->
+                <section class="glass-card input-panel">
+                    <h2>Prediction Parameters</h2>
+                    <form id="prediction-form">
+                        <div class="form-group">
+                            <label for="predBlend">Blend Composition:</label>
+                            <select id="predBlend" required>
+                                <option value="R407">R407</option>
+                                <option value="R32/R125/R152a (70/10/20)">R32/R125/R152a (70/10/20)</option>
+                                <option value="R32/R125/R152a (20/10/70)">R32/R125/R152a (20/10/70)</option>
+                                <option value="R32/R125/R152a (15/15/70)">R32/R125/R152a (15/15/70)</option>
+                                <option value="R32/R125/R152a (30/10/60)">R32/R125/R152a (30/10/60)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="massSlider">Refrigerant Mass: <span id="massValue">1.50</span> kg</label>
+                            <input type="range" id="massSlider" name="mass" min="1.0" max="2.5" step="0.05" value="1.5">
+                        </div>
+                        
+                        <button type="submit" class="primary-btn" id="predictBtn">
+                            <span class="btn-text">Generate Forecast</span>
+                            <span class="loader" style="display: none;"></span>
+                        </button>
+                    </form>
+                    
+                    <div class="info-box">
+                        <h3>Thermodynamic Baseline</h3>
+                        <ul>
+                            <li><strong>Ambient (To):</strong> 300 K</li>
+                            <li><strong>Cooling Load (QL):</strong> 7.034 kW</li>
+                        </ul>
+                    </div>
+                </section>
+
+                <!-- Metrics Highlight -->
+                <section class="metrics-panel">
+                    <div class="glass-card metric-card">
+                        <h3>Peak COP</h3>
+                        <div class="metric-value animate-value" id="peakCop">--</div>
+                        <p class="metric-sub">Coefficient of Performance</p>
+                    </div>
+                    
+                    <div class="glass-card metric-card">
+                        <h3>Min Compressor Work</h3>
+                        <div class="metric-value animate-value" id="minWcomp">--<span> kW</span></div>
+                        <p class="metric-sub">Energy Draw</p>
+                    </div>
+
+                    <div class="glass-card metric-card highlight">
+                        <h3>Exergy Efficiency <br/><small>(Magnitude)</small></h3>
+                        <div class="metric-value animate-value" id="peakExergy">--<span>%</span></div>
+                        <p class="metric-sub">True Reversible Efficiency</p>
+                    </div>
+                </section>
+
+                <!-- Chart -->
+                <section class="glass-card chart-panel">
+                    <h2>Performance Trajectory</h2>
+                    <div class="chart-container">
+                        <canvas id="performanceChart"></canvas>
+                    </div>
+                </section>
+
+                <!-- Data Table -->
+                <section class="glass-card table-panel" style="grid-column: 1 / -1;">
+                    <h2>Forecasted Values</h2>
+                    <div class="table-container">
+                        <table id="dataTable">
+                            <thead>
+                                <tr>
+                                    <th>Time (min)</th>
+                                    <th>TL (°C)</th>
+                                    <th>TH (°C)</th>
+                                    <th>COP</th>
+                                    <th>Wcomp (kW)</th>
+                                    <th>η_exergy</th>
+                                    <th>|η_exergy|</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td colspan="7" style="text-align: center; color: rgba(255,255,255,0.5);">Awaiting Prediction...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            </div>
+        </div>
+    </main>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
