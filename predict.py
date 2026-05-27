@@ -57,8 +57,8 @@ for t, tl, th in zip(next_times, TL_pred, TH_pred):
     tl_k = tl + 273.15
     th_k = th + 273.15
     
-    cop = (tl_k / (th_k - tl_k)) / 2
-    wcomp = (QL / cop) * 2
+    cop = tl_k / (th_k - tl_k)
+    wcomp = QL / cop
     n_exergy = QL * (1 - To / tl_k) / wcomp
     n_exergy_mag = abs(n_exergy)
     

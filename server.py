@@ -1,87 +1,39 @@
-from flask import Flask, request, jsonify, render_template
-import numpy as np
-import pandas as pd
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.preprocessing import LabelEncoder
-import re
 import os
+from flask import Flask, request, jsonify, render_template
+from flask_cors import CORS
+from ml_model import PhysicsInformedModel
+from sqlalchemy import create_engine, Column, Integer, Float, String, DateTime
+from sqlalchemy.orm import declarative_base, sessionmaker
+from datetime import datetime
+
+# Initialize Database
+Base = declarative_base()
+
+class PredictionLog(Base):
+    __tablename__ = 'predictions'
+    id = Column(Integer, primary_key=True)
+    timestamp = Column(DateTime, default=datetime.utcnow)
+    blend = Column(String(50))
+    mass = Column(Float)
+    duration = Column(Integer)
+    status = Column(String(20))
+    error_msg = Column(String(200))
+
+engine = create_engine('sqlite:///prediction_logs.db')
+Base.metadata.create_all(engine)
+Session = sessionmaker(bind=engine)
 
 app = Flask(__name__)
+CORS(app) # Enable CORS for all routes
 
-# Train ML Models on Boot
-# 1. Provide original R407 data
-r407_data = [
-    (0, 1.5, 36+273.15, 33+273.15), (5, 1.5, 26+273.15, 59+273.15), (10, 1.5, 22+273.15, 60+273.15), (15, 1.5, 19+273.15, 59+273.15), 
-    (20, 1.5, 16+273.15, 59+273.15), (25, 1.5, 13+273.15, 59+273.15), (30, 1.5, 11+273.15, 58+273.15), (35, 1.5, 9+273.15, 56+273.15), 
-    (40, 1.5, 7+273.15, 57+273.15), (45, 1.5, 5+273.15, 55+273.15),
-    (0, 1.6, 33+273.15, 34+273.15), (5, 1.6, 25+273.15, 56+273.15), (10, 1.6, 21+273.15, 58+273.15), (15, 1.6, 21+273.15, 58+273.15), 
-    (20, 1.6, 14+273.15, 58+273.15), (25, 1.6, 12+273.15, 58+273.15), (30, 1.6, 8+273.15, 57+273.15), (35, 1.6, 7+273.15, 55+273.15), 
-    (40, 1.6, 5+273.15, 56+273.15), (45, 1.6, 3+273.15, 56+273.15),
-    (0, 1.75, 30+273.15, 56+273.15), (5, 1.75, 24+273.15, 53+273.15), (10, 1.75, 20+273.15, 61+273.15), (15, 1.75, 16+273.15, 60+273.15), 
-    (20, 1.75, 15+273.15, 59+273.15), (25, 1.75, 10+273.15, 58+273.15), (30, 1.75, 8+273.15, 57+273.15), (35, 1.75, 4+273.15, 56+273.15), 
-    (40, 1.75, 3+273.15, 56+273.15),
-    (0, 1.8, 35+273.15, 43+273.15), (5, 1.8, 24+273.15, 58+273.15), (10, 1.8, 19+273.15, 59+273.15), (15, 1.8, 17+273.15, 59+273.15), 
-    (20, 1.8, 13+273.15, 59+273.15), (25, 1.8, 10+273.15, 58+273.15), (30, 1.8, 7+273.15, 57+273.15), (35, 1.8, 5+273.15, 57+273.15), 
-    (40, 1.8, 3+273.15, 57+273.15)
-]
-df_r407 = pd.DataFrame(r407_data, columns=['Time', 'Mass', 'TL', 'TH'])
-df_r407['Blend'] = 'R407'
-
-# 2. Extract given blend data from pdf2_text.txt
-df_list = []
-if os.path.exists('pdf2_text.txt'):
-    with open('pdf2_text.txt', 'r', encoding='utf-8') as f:
-        text = f.read()
-    blocks = re.split(r'Here, QL=.*\n1TR=.*\n', text)
-    for block in blocks[1:]:
-        lines = block.strip().split('\n')
-        header_line = lines[0]
-        
-        mass_match = re.search(r'of\s*([\d\.]+)\s*kg', header_line, re.I)
-        blend_match = re.search(r'=\s*(\d+\s*/\s*\d+\s*/\s*\d+)', header_line)
-        
-        if not mass_match or not blend_match:
-            continue
-            
-        mass = float(mass_match.group(1))
-        blend_raw = blend_match.group(1).replace(' ', '')
-        blend = f"R32/R125/R152a ({blend_raw})"
-        
-        for line in lines:
-            parts = line.strip().split()
-            if len(parts) >= 7:
-                try:
-                    time = float(parts[0])
-                    tl = float(parts[1])
-                    th = float(parts[2])
-                    df_list.append({'Time': time, 'Mass': mass, 'TL': tl, 'TH': th, 'Blend': blend})
-                except ValueError:
-                    pass
-
-df_pdf = pd.DataFrame(df_list)
-df_all = pd.concat([df_r407, df_pdf], ignore_index=True)
-
-print(f"Data parsed successfully: {len(df_all)} data rows.")
-
-# 3. Fit ML Model
-from xgboost import XGBRegressor
-from sklearn.multioutput import MultiOutputRegressor
-
-le = LabelEncoder()
-df_all['Blend_Enc'] = le.fit_transform(df_all['Blend'])
-
-X = df_all[['Time', 'Mass', 'Blend_Enc']]
-y_TL = df_all['TL']
-y_TH = df_all['TH']
-
-rf_TL = XGBRegressor(n_estimators=300, learning_rate=0.05, max_depth=6, random_state=42)
-rf_TH = XGBRegressor(n_estimators=300, learning_rate=0.05, max_depth=6, random_state=42)
-
-rf_TL.fit(X, y_TL)
-rf_TH.fit(X, y_TH)
-
-print(f"Server Ready: XGBoost Trained. TL Accuracy: {rf_TL.score(X, y_TL):.4f}, TH Accuracy: {rf_TH.score(X, y_TH):.4f}")
-
+# Load the production physics-informed model on boot
+print("Loading Production Physics-Informed ML Model...")
+pm = PhysicsInformedModel()
+pm.load_model()
+if pm.is_trained:
+    print("Model loaded successfully.")
+else:
+    print("WARNING: Model failed to load. Please ensure ml_pipeline.py has been run.")
 
 @app.route('/')
 def index():
@@ -89,61 +41,37 @@ def index():
 
 @app.route('/predict', methods=['POST'])
 def predict():
+    session = Session()
     try:
         content = request.json
+        if not content:
+            return jsonify({"success": False, "error": "No JSON body provided"}), 400
+            
         mass = float(content.get('mass', 1.5))
         duration = int(content.get('duration', 50))
         blend = content.get('blend', 'R407')
         
-        # Handle unseen blends explicitly just in case
-        if blend not in le.classes_:
-            print(f"Warning: unknown blend {blend}, falling back to default.")
-            blend_enc = le.transform([le.classes_[0]])[0]
-        else:
-            blend_enc = le.transform([blend])[0]
-
-        predictions = []
-        for time_step in range(0, duration + 1, 5):
-            features = np.array([[time_step, mass, blend_enc]])
-            
-            # Predict
-            pred_tl_k = rf_TL.predict(features)[0]
-            pred_th_k = rf_TH.predict(features)[0]
-            
-            # Constraints
-            if pred_th_k <= pred_tl_k:
-                pred_th_k = pred_tl_k + 5 
-
-            # Efficiencies Calculations
-            cop = (pred_tl_k / (pred_th_k - pred_tl_k)) / 2
-            QL = 7.034
-            wcomp = (QL / cop) * 2
-            
-            To = 300.0
-            n_exergy = QL * (1 - To / pred_tl_k) / wcomp
-            n_exergy_mag = abs(n_exergy)
-
-            # Outputs array requires display format
-            # Using celsius for trajectory readability if needed or matched to PDF format.
-            # But the PDF outputs match Kelvin format. Our chart previously used Celsius for UI readability.
-            # Convert to C:
-            pred_tl_c = pred_tl_k - 273.15
-            pred_th_c = pred_th_k - 273.15
-            
-            predictions.append({
-                'Time': time_step,
-                'TL': round(pred_tl_c, 2),
-                'TH': round(pred_th_c, 2),
-                'COP': round(cop, 4),
-                'Wcomp': round(wcomp, 4),
-                'Exergy': round(n_exergy, 4),
-                'ExergyMag': round(n_exergy_mag, 4)
-            })
-            
+        # Log request
+        log = PredictionLog(blend=blend, mass=mass, duration=duration, status='PENDING')
+        session.add(log)
+        session.commit()
+        
+        # Make predictions
+        predictions = pm.predict_trajectory(mass, blend, duration=duration)
+        
+        log.status = 'SUCCESS'
+        session.commit()
+        
         return jsonify({"success": True, "data": predictions})
     except Exception as e:
-        print("Exception exactly at prediction API: ", e)
-        return jsonify({"success": False, "error": str(e)})
+        print("Exception at prediction API: ", e)
+        if 'log' in locals():
+            log.status = 'ERROR'
+            log.error_msg = str(e)[:200]
+            session.commit()
+        return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        session.close()
 
 @app.route('/calculate', methods=['POST'])
 def calculate():
@@ -155,16 +83,10 @@ def calculate():
         blend = content.get('blend', 'R32/R125/R152a')
         mass = float(content.get('mass', 1.5))
         
-        QL = 7.034
-        To = 300.0
-        
         if th_k <= tl_k:
-            return jsonify({"success": False, "error": "Compressor Temp must be strictly greater than Evaporator Temp"})
+            return jsonify({"success": False, "error": "Compressor Temp must be strictly greater than Evaporator Temp"}), 400
             
-        cop = (tl_k / (th_k - tl_k)) / 2
-        wcomp = (QL / cop) * 2
-        n_exergy = QL * (1 - To / tl_k) / wcomp
-        n_exergy_mag = abs(n_exergy)
+        cop, wcomp, n_exergy, n_exergy_mag = pm.calculate_physics(tl_k, th_k)
         
         result = {
             'Time': time,
@@ -179,7 +101,10 @@ def calculate():
         }
         return jsonify({"success": True, "data": result})
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)})
+        return jsonify({"success": False, "error": str(e)}), 500
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    # When run directly, we use waitress for production
+    from waitress import serve
+    print("Starting Waitress production server on port 5000...")
+    serve(app, host='0.0.0.0', port=5000)
