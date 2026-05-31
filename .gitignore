@@ -1,0 +1,32 @@
+# === Executables & Tunnels ===
+cloudflared.exe
+cloudflared_output.txt
+
+# === Raw PDF Extracted Text (Not needed by users) ===
+pdf_text.txt
+pdf2_text.txt
+
+# === Database (Personal Usage Logs) ===
+prediction_logs.db
+
+# === Python Cache ===
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# === Environment Files ===
+.env
+*.env
+
+# === OS Files ===
+.DS_Store
+Thumbs.db
+
+# === Jupyter Notebooks Checkpoints ===
+.ipynb_checkpoints/
+
+# === Virtual Environment ===
+venv/
+env/
+.venv/
